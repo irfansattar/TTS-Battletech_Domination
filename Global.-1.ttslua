@@ -1,0 +1,1311 @@
+function onload()
+    --Object GUIDs--
+    mainButtonGUID = '2ba2c1'
+    mainButton = getObjectFromGUID(mainButtonGUID)
+    supplyDeckGUID = '80b7ef'
+    supplyDeck = getObjectFromGUID(supplyDeckGUID)
+    redPlayerGUID = 'a6f57d'
+    redPlayerDeck = getObjectFromGUID(redPlayerGUID)
+    bluePlayerGUID = '9dfba6'
+    bluePlayerDeck = getObjectFromGUID(bluePlayerGUID)
+    oldOverrunBagGUID = '763e92'
+    oldOverrunBag = getObjectFromGUID(oldOverrunBagGUID)
+    newOverrunBagGUID = '4f5a6e'
+    newOverrunBag = getObjectFromGUID(newOverrunBagGUID)
+    randButtonDestroyed = false;
+
+    --Functions to be loaded on startup--
+    overrunCardsOnLoad()
+    randFirstOnLoad()
+    blueFirstOnLoad()
+    redFirstOnLoad()
+    redDiscardResetOnLoad()
+    redCleanUpResetOnLoad()
+    blueDiscardResetOnLoad()
+    blueCleanUpResetOnLoad()
+end
+
+cardData = {
+["Heavy Casualties"] = {0,false,"Overrun - Support",{0,0},{0,0},1,0}, -- -1 Score
+["Raided Supplies"] = {0,false,"Overrun - Support",{0,0},{0,0},0,0}, -- -2 Score; SCRAP Resource to DRAW
+["Critical Hit"] = {0,false,"Overrun - Support",{0,0},{0,0},0,0}, -- -3 Score; SCRAP Unit - Mech to return RES-COST+LOST
+["Retreat!"] = {0,false,"Overrun - Support",{0,0},{0,0},0,0}, -- -3 Score; discard hand DRAW 3; DRAW+1 for each UNIT/Support; once per round
+
+["Infantry Platoon"] = {1,false,"Unit - Infantry",{0,1},{0,0},-1,0}, -- Return to base when Unit - Mech in enemy Deployment
+["Factory"] = {0,false,"Resource",{0,0},{1,0},0,0},
+["Supply Drop"] = {2,false,"Resource",{0,0},{2,0},0,0}, -- Return to base when spent
+["Heavy Factory"] = {3,false,"Resource",{0,0},{2,1},0,0}, -- May choose RES or LT not both
+["Advanced Factory"] = {6,false,"Resource",{0,0},{3,1},0,0},
+
+["Fuel Dump"] = {3,false,"Resource",{0,0},{1,0},0,0}, -- May SCRAP Resource
+["Dropship"] = {4,false,"Resource",{0,0},{0,0},0,3}, -- Put a card from HAND to top of DECK
+["Banking Sector"] = {5,false,"Resource",{0,0},{4,0},0,0},
+
+["Mechanized Infantry"] = {2,false,"Unit - Infantry",{0,1},{0,0},0,0}, -- Mobile; Expendible: STARTCOMBAT-DMGSELF=ATT+!
+["Elementals (MG)"] = {3,false,"Unit - Infantry",{2,0},{0,0},-1,0}, -- Anti-infantry: DEPLOY-DMG-Unit - Infantry
+["Heavy Infantry"] = {3,false,"Unit - Infantry",{1,1},{0,0},-1,0}, -- Inspiring: ATT+1 for each FRIEND Infantry Platoon in DEPLOY
+["Elementals (Laser)"] = {4,false,"Unit - Infantry",{2,0},{0,0},-1,0}, -- Swarm Attack: DEPLOY-DMG-Unit - Mech
+
+["Manticore"] = {1,false,"Unit - Vehicle",{1,1},{0,0},-1,0}, -- Tank: SCRAP or shuffle into SUPPLY
+["Partisan"] = {1,false,"Unit - Vehicle",{0,2},{0,0},-1,0}, -- Tank: SCRAP or shuffle into SUPPLY
+["Aggressor"] = {1,false,"Unit - Vehicle",{2,0},{0,0},-1,0}, -- Tank: SCRAP or shuffle into SUPPLY
+["Cheetah"] = {1,false,"Unit - Vehicle",{2,0},{0,0},-1,0}, -- Afterburner: Pay RES+2 to put in DEPLOY; Refuel/Rearm: OVERRUN-DMGSELF
+["Schrek PPC Carrier"] = {1,false,"Unit - Vehicle",{1,2},{0,0},-1,0}, -- Tank: SCRAP or shuffle into SUPPLY
+["Transit"] = {1,false,"Unit - Vehicle",{3,0},{0,0},-1,0}, -- Tank: SCRAP or shuffle into SUPPLY
+["Slayer"] = {1,false,"Unit - Vehicle",{1,0},{0,0},-1,0}, -- Refuel/Rearm: OVERRUN-DMGSELF ; STARTCOMBAT-DMGSELF=DMG-Unit - Mech
+["Sturmfeur"] = {1,false,"Unit - Vehicle",{1,0},{0,0},-1,0}, -- Tank: SCRAP or shuffle into SUPPLY
+["Stuka"] = {1,false,"Unit - Vehicle",{4,0},{0,0},-1,0}, -- Refuel/Rearm: OVERRUN-DMGSELF
+["Mobile HQ"] = {1,false,"Unit - Vehicle",{0,0},{0,0},-1,0}, -- Command Post: DRAW+2 at end turn/Reduce back to 5 after ; High-Value Target: if DMG/SCRAPPED, Opponent DRAW+2
+
+["Locust"] = {1,false,"Unit - Mech",{0,0},{0,0},0,0}, -- Mobile; Spotter: OPP reveals top card, DRAW+1 if Unit - Mech
+["Spider"] = {1,false,"Unit - Mech",{1,0},{0,0},-1,0}, -- Harasser: OPP DISCARD 1 card on DEPLOY
+["UrbanMech"] = {1,false,"Unit - Mech",{0,1},{0,0},-1,0}, -- City Fighter: ATT+3 if OPP DEPLOY has Unit - Infantry>=2
+["Commando"] = {2,false,"Unit - Mech",{1,0},{0,0},-1,0}, -- Scout: OPP reveals top card, (this card owner) DISCARD or leave it
+["Jenner"] = {2,false,"Unit - Mech",{1,0},{0,0},-1,0}, -- Guerrilla Fighter: OVERRUN=DRAW+1
+["Blackjack"] = {3,false,"Unit - Mech",{1,1},{0,0},-1,0}, -- Supressive Fire: ATT+2 if FREIND DEPLOY has Unit - Mech > OPP Unit - Mech DEPLOY
+["Centurion"] = {3,false,"Unit - Mech",{1,1},{0,0},-1,0}, -- AC/10: ATT+1 if OPP DEPLOY has Unit - Mech
+["Firestarter"] = {3,false,"Unit - Mech",{1,0},{0,0},-1,0}, -- Flamers: ENDCOMBAT-OPP-DEPLOY-DMGALL=Infantry Platoon
+["Raven"] = {3,false,"Unit - Mech",{0,0},{0,0},-1,0}, -- Active Probe: DRAW+1 if OPP DEPLOY Unit - Mech or Unit - Vehicle; ECM: DEF+1 for each FREIND Unit - Mech in DEPLOY
+["Trebuchet"] = {3,false,"Unit - Mech",{1,1},{0,0},-1,0}, -- Mobile Fire Support: STARTCOMBAT-ATT+1 if DISCARD CARD from HAND
+["Cicada"] = {4,false,"Unit - Mech",{1,1},{0,0},0,0}, -- Mobile
+["Crab"] = {4,false,"Unit - Mech",{1,1},{0,0},-1,0}, -- Advanced Comm System: STARTCOMBAT=DRAW+1 if FRIEND DEPLOY ATT > OPP DEPLOY ATT
+["Griffin"] = {4,false,"Unit - Mech",{1,1},{0,0},-1,0}, -- Sniper: DEPLOY = OPP DMG
+["Hunchback"] = {4,false,"Unit - Mech",{1,1},{0,0},-1,0}, -- AC/20: Reveal top DECK. If UNIT/Support=OPP-DMG-UNIT
+["Shadow Hawk"] = {4,false,"Unit - Mech",{1,1},{0,0},-1,0}, -- Recon-In-Force: DEPLOY=DISCARD CARD from HAND=OPP GAIN Raided Supplies
+["Wolverine"] = {4,false,"Unit - Mech",{2,1},{0,0},-1,0}, -- Brawler: this UNIT-DMG=OPP must DMG UNIT
+["Argus"] = {5,false,"Unit - Mech",{2,2},{0,0},-1,0}, --
+["Catapult"] = {5,false,"Unit - Mech",{0,2},{0,0},-1,0}, -- Heavy Fire Support: STARTCOMBAT=DISCARD UNIT from HAND=OPP DMG UNIT
+["Dragon"] = {5,false,"Unit - Mech",{1,2},{0,0},-1,0}, -- Mobile Heavy: ATT+2 if OPP-DEPLOY has no RES-UNIT > 5
+["JagerMech"] = {5,false,"Unit - Mech",{1,2},{0,0},-1,0}, --  Supressive Fire: ATT+2 if FREIND DEPLOY has Unit - Mech > OPP Unit - Mech DEPLOY
+["Quickdraw"] = {5,false,"Unit - Mech",{2,1},{0,0},-1,0}, -- Versatile: DEPLOY=Pick 1: Draw+1;ACT+1;RES+1
+["Thunderbolt"] = {5,false,"Unit - Mech",{2,1},{0,0},-1,0}, -- Durable: this UNIT-DMG=DRAW+!
+["Awesome"] = {6,false,"Unit - Mech",{1,3},{0,0},-1,0}, -- Overheat: STARTCOMAT-DMGSELF=ATT+4
+["Orion"] = {6,false,"Unit - Mech",{2,2},{0,0},-1,0}, -- Heroic: if FRIEND DEPLOY-UNIT < OPP DEPLOY-UNIT then ATT+1 & DEF+2
+["Stalker"] = {6,false,"Unit - Mech",{4,2},{0,0},-1,0}, -- Poor Heat Management: OVERRUN=DISCARD CARD & SHUFFLE this UNIT in DECK
+["Victor"] = {6,false,"Unit - Mech",{2,2},{0,0},-1,0}, -- Jump Jets: DEPLOY=OPP-DMG-UNIT  >= RES-6
+["Warhammer"] = {6,false,"Unit - Mech",{2,2},{0,0},-1,0}, -- Intimidating: Deploy=OPP return UNIT from DEPLOY to HAND (this card owners choice)
+["Zeus"] = {6,false,"Unit - Mech",{2,3},{0,0},-1,0}, -- Durable: this UNIT-DMG=DRAW+!
+["Highlander"] = {7,false,"Unit - Mech",{2,3},{0,0},-1,0}, -- Highlander Burial: STARTCOMBAT-DMGSELF= OPP UNIT <= 5 SCRAP (This card owners choice)
+["Marauder"] = {7,false,"Unit - Mech",{3,3},{0,0},-1,0}, -- Renowned: DEPLOY=DRAW+1
+["Atlas"] = {8,false,"Unit - Mech",{3,4},{0,0},-1,0}, -- Heavy Armor: if this UNIT-DMG=SHUFFLE back into DECK
+["King Crab"] = {8,false,"Unit - Mech",{3,4},{0,0},-1,0}, -- Dual AC/20: DEPLOY=OPP DMG Unit - Mech
+
+["Koshi"] = {2,true,"Unit - Mech",{2,0},{0,0},-1,0}, -- Striker: STARTCOMBAT=OPP reveal+DISCARD top card. if RES then DRAW+1
+["Kit Fox"] = {3,true,"Unit - Mech",{2,1},{0,0},-1,0}, -- Versatile: DEPLOY=Pick 1: Draw+1;ACT+1;RES+1; Quick to Action: on BUY put at top of DECK
+["Adder"] = {4,true,"Unit - Mech",{3,1},{0,0},-1,0}, -- Ferocious: DRAW+1 if OPP DMG-MECH
+["Black Hawk"] = {4,true,"Unit - Mech",{3,1},{0,0},-1,0}, --  Laser Barrage: STARTCOMBAT=reveal top deck. ATT+2 if UNIT
+["Fenris"] = {4,true,"Unit - Mech",{2,1},{0,0},-1,0}, -- Active Probe: DRAW+1 if OPP DEPLOY Unit - Mech or Unit - Vehicle; Very Fast: on GAIN put this UNIT immedately in DEPLOY
+["Ryoken"] = {4,true,"Unit - Mech",{3,1},{0,0},-1,0}, -- Counter-Attack: this unit-DMG=OPP must DMG highest RES UNIT
+["Shadow Cat"] = {4,true,"Unit - Mech",{3,1},{0,0},-1,0}, -- Jump Jets: DEPLOY=OPP-DMG-UNIT  >= RES-6
+["Man O'War"] = {5,true,"Unit - Mech",{3,2},{0,0},-1,0}, -- Fast Assault: cannot DMG this UNIT unless OPP DEPLOY has UNIT RES > 6
+["Vulture"] = {5,true,"Unit - Mech",{2,2},{0,0},-1,0}, -- LRM-Support: each Unit - Mech ATT+1 in FREIND DEPLOY
+["Loki"] = {6,true,"Unit - Mech",{3,2},{0,0},-1,0}, -- Active Probe: DRAW+1 if OPP DEPLOY Unit - Mech or Unit - Vehicle; ECM: DEF+1 for each FREIND Unit - Mech in DEPLOY
+["Thor"] = {6,true,"Unit - Mech",{3,2},{0,0},-1,0}, -- Death from Above: STARTCOMBAT-DMGSELF= OPP UNIT <= 5 SCRAP (This card owners choice)
+["Gladiator"] = {7,true,"Unit - Mech",{5,3},{0,0},-1,0}, -- Totem Mech: this UNIT cannot be DMG if only FRIEND Unit - Mech in DEPLOY
+["Mad Cat"] = {7,true,"Unit - Mech",{4,3},{0,0},-1,0}, -- Overwhelming: DEPLOY=OPP DMG-UNIT RES <= 5 (This card owners choice)
+["Nova Cat"] = {7,true,"Unit - Mech",{4,2},{0,0},-1,0}, -- Long Range Barrage: STARTCOMBAT= Reveal top card. If RES=OPP-DISCARD 1 from hand; if UNIT=OPP-DMG-UNIT
+["Kodiak"] = {8,true,"Unit - Mech",{6,4},{0,0},-1,0}, -- Champion Mech: DEPLOY=DRAW+2 if OPP-DEPLOY > FRIEND-DEPLOY
+["Masakari"] = {8,true,"Unit - Mech",{4,4},{0,0},-1,0}, -- Quad ER PPCs: STARTCOMBAT=DISCARD 2 cards=OPP GAIN Heavy Casualties
+["Daishi"] = {9,true,"Unit - Mech",{6,4},{0,0},-1,0}, -- Great Death: OVERRUN=OPP-DMG-UNIT
+
+["Redeployment"] = {2,false,"Support",{0,0},{0,0},0,1}, -- take UNIT from FRIEND-DEPLOY and put in HAND
+["Hidden Route"] = {2,false,"Support",{0,0},{0,0},0,1}, -- Set 1 card aside face down, pick up at start of next turn.
+["Staging Ground"] = {2,false,"Support",{0,0},{0,0},0,3}, -- DISCARD 3 Cards
+["Behind Enemy Lines"] = {3,false,"Support - Attack",{0,0},{0,0},-1,2}, -- OPP-DISCARD to 3 cards in HAND
+["Close Formation"] = {3,false,"Support",{0,0},{0,0},0,0}, -- cards from hand = DRAW+X for each DISCARD
+["Combined Arms"] = {3,false,"Support",{0,0},{0,0},2,0}, -- Gain Infantry Platoon or VEHICLE from SUPPLY, put into HAND
+["Heavy Bombardment"] = {3,false,"Support - Attack",{0,0},{0,0},0,0}, -- Reveal top card, if RES <= OPP-DEPLOY-UNITS = OPP-DMG
+["Heavy Manufacturing"] = {3,false,"Support",{0,0},{3,0},-1,0}, -- SCRAP Resource from HAND=RES+3
+["Mech Bay"] = {3,false,"Support",{0,0},{0,0},-1,3}, --
+["Quartermaster"] = {3,false,"Support",{0,0},{1,0},-1,0}, -- Pick 2 (may be same or diff): Draw+1;ACT+1;RES+1;
+["Scrap for Parts"] = {3,false,"Support",{0,0},{2,0},-1,0}, -- DISCARD UNIT=GAIN RES+X (X=UNITS RES-COST)
+["Reinforcements"] = {3,false,"Support",{0,0},{0,0},0,0}, -- Reveal top 4 cards. All UNITS go to HAND. Rest return in any order
+["Refinery"] = {3,false,"Support",{0,0},{0,0},-1,0}, -- SCRAP Resource from HAND. GAIN Resource costing up to 3 more then Resource SCRAPPED
+["Rapid Deployment"] = {3,false,"Support",{0,0},{0,0},1,1}, --
+["Counterattack"] = {4,false,"Support",{0,0},{0,0},1,1}, -- Reveal any number of OVERRUN cards from HAND=DRAW+1 Per OVERRUN
+["Repair Facility"] = {4,false,"Support",{0,0},{0,0},-1,0}, -- DRAW till you have 6 card HAND. ACT+1 if OPP-DEPLOY > FRIEND-DEPLOY
+["Tactical Nuke"] = {4,false,"Support - Attack",{0,0},{0,0},-1,0}, -- Reveal & DISCARD top card. OPP-DMG X where X=COST/2(of card) (Round up)
+["UAV"] = {4,false,"Support",{0,0},{0,0},0,0}, -- OPP reveal HAND. DRAW+1 for each OPP-UNIT reveal
+["Zellbringen"] = {4,false,"Support",{0,0},{0,0},2,2}, -- DISCARD card
+["Artillery Strike"] = {5,false,"Support - Attack",{0,0},{0,0},-1,0}, -- DISCARD card=if UNIT=OPP GAIN Raided Supplies; if Resource/Support= OPP-DMG-UNIT
+["Civilian Settlement"] = {5,false,"Support",{0,0},{0,0},-1,5}, -- DISCARD 3 cards; OPP-DRAW+1
+["Close Air Support"] = {5,false,"Support - Attack",{0,0},{0,0},-1,0}, -- DISCARD card=if UNIT/Resource=OPP-DMG-Unit - Mech; if Support=OPP GAIN Raided Supplies
+["Fortified Palace"] = {5,false,"Support",{0,0},{0,0},-1,0}, -- Reveal 5 cards. DISCARD revealed card with highest RES-COST. Rest go to HAND
+["Night Assault"] = {5,false,"Support - Attack",{0,0},{0,0},-1,0}, -- OPP reveal top 3 cards. pick 2 and DISCARD (owner of this card) last card returns to top.
+["Urban Assault"] = {5,false,"Support - Attack",{0,0},{0,0},-1,0}, -- GAIN Heavy Factory; OPP take UNIT from hand to top of DECK.
+["Supply Run"] = {5,false,"Support",{0,0},{0,0},0,0}, -- Great Death: GAIN card from supply if RES <= 4; Place at top of deck
+["Salvage Team"] = {5,false,"Support",{0,0},{2,0},-1,0}, -- all CARDS GAIN or BUY put on top of DECK
+["Targeting Computer"] = {6,false,"Support - Attack",{0,0},{0,0},-1,0}, -- DISCARD card. OPP-DMG-UNIT (owner of this card choice)
+["Combat Drop"] = {6,false,"Support",{0,0},{0,0},-1,3}, -- DISCARD any # of cards from hand. ACT+1 for each card DISCARDED
+
+["Technican Caste"] = {3,true,"Support",{0,0},{0,0},0,0}, -- SCRAP Unit - Mech from HAND or DEPLOY. GAIN Unit - Mech from SUPPLY. put it into HAND
+["HPG Uplink"] = {4,true,"Support",{0,0},{0,0},-1,0}, -- Pick 3 (Must be different); DRAW+2;ACT+2;RES+3;LT+1
+["Jumpship"] = {4,true,"Support",{0,0},{0,0},0,2}, -- on BUY, GAIN CARD RES <= 5 to top of DECK
+["Laborer Caste"] = {4,true,"Support",{0,0},{0,0},0,3}, --
+["Scientist Caste"] = {5,true,"Support",{0,0},{0,0},-1,3}, -- Ignore LOSTREQ when BUYING
+["Merchant Caste"] = {6,true,"Support",{0,0},{0,0},-1,0}, -- GAIN from SUPPLY
+["Warrior Caste"] = {7,true,"Support",{0,0},{0,0},1,0}, -- SCRAP up to 2 Resource from HAND or DISCARD pile. DRAW+1 for each SCRAPPED
+
+["Ambush"] = {2,false,"Support - Reaction",{0,0},{0,0},-1,0}, -- place in DEPLOY. OVERRUN=SCRAP this & OPP-DMG-Unit - Mech your choice
+["Expert Mech Techs"] = {3,false,"Support - Reaction",{0,0},{0,0},-1,0}, -- place in DEPLOY. FRIEND DMG-Unit - Mech=SCRAP this & put Unit - Mech into hand instead
+["Forward Base"] = {4,false,"Support - Reaction",{0,0},{0,0},-1,0}, -- place in DEPLOY. OVERRUN= SCRAP this & no OVERRUN cards for rest of turn
+
+}
+
+scoreDone = false --Used to see if the score button has already been displayed or not in order to avoid duplicates
+gameStart = false --To indicate when the game has started
+overrunCardsPlaced = false --For whether the overrun cards have been picked
+
+function onObjectPickedUp(player_color, picked_up_object)
+  local cast = {}
+  cast.origin = {0, 0, -0.2}
+  cast.direction = {0,1,0}
+  cast.type = 3
+  cast.size = {17, 5, 2} --Should be {23, 5, 5.8}
+  cast.orientation = {0,0,0}
+  cast.max_distance = 1
+  --cast.debug = true
+
+  --print(picked_up_object.getName())
+
+  supplyCards = Physics.cast(cast)
+
+  supplyCardPickUp = false
+
+  for i, object in ipairs(supplyCards) do
+    if object.hit_object.getName() == picked_up_object.getName() then
+      --print("In supply zone")
+      --print('PICKED UP CARD: ' .. picked_up_object.getName())
+      supplyCardPickUp = true
+    end
+  end
+end
+
+function onObjectDropped(player_color, dropped_object)
+  --For refilling 'The Supply' with a missing card--
+  if supplyCardPickUp then
+    function findEmptySpot()
+      for i = 1, 6, 1 do
+        supplyCardPos = {-9.51, -5.78, -2.05, 1.68, 5.41, 9.14}
+
+        items = 0
+
+        local cast = {}
+        cast.origin = {supplyCardPos[i], 0, 0}
+        cast.direction = {0,1,0}
+        cast.type = 3
+        cast.size = {1, 1, 1}
+        cast.orientation = {0,0,0}
+        cast.max_distance = 1
+        --cast.debug = true
+
+        emptySpots = Physics.cast(cast)
+
+        for i, object in ipairs(emptySpots) do
+          items = items + 1
+        end
+
+        if items == 1 then
+          return {supplyCardPos[i], 3, -0.1}
+        end
+      end
+    end
+
+    inHand = false
+
+    if player_color == 'Red' then
+      redHandObjects = Player.Red.getHandObjects(1)
+    elseif player_color == 'Blue' then
+      redHandObjects = Player.Blue.getHandObjects(1)
+    end
+
+    for i, object in ipairs(redHandObjects) do
+      if object.getName() == dropped_object.getName() then
+        --print("Bought3")
+        emptySpot = findEmptySpot()
+
+        local supplyDeckCast = {}
+        supplyDeckCast.origin = {-15.46, 1.16, -0.15}
+        supplyDeckCast.direction = {0,1,0}
+        supplyDeckCast.type = 3
+        supplyDeckCast.size = {1, 1, 1}
+        supplyDeckCast.orientation = {0,0,0}
+        supplyDeckCast.max_distance = 1
+        --supplyDeckCast.debug = true
+
+        supplyDeck = Physics.cast(supplyDeckCast)
+
+        for i, object in ipairs(supplyDeck) do
+          if object.hit_object.tag == 'Deck' then
+            object.hit_object.takeObject({
+              position       = emptySpot,
+              flip           = true
+            })
+          end
+        end
+
+        inHand = true
+      end
+    end
+
+    if inHand == false then
+
+      local boughtCast = {}
+      boughtCast.origin = {0.1, 1.21, -14.5}
+      boughtCast.direction = {0,1,0}
+      boughtCast.type = 3
+      boughtCast.size = {34.7, 5, 16}
+      boughtCast.orientation = {0,0,0}
+      boughtCast.max_distance = 1
+      --boughtCast.debug = true
+
+      if player_color == 'Red' then
+        boughtCast.origin = {0.1, 1.21, -14.5}
+      elseif player_color == 'Blue' then
+        --print('In blue cast origin')
+        boughtCast.origin = {0.1, 1.21, 14.5}
+      end
+
+      boughtCastObjects = Physics.cast(boughtCast)
+
+      for i, object in ipairs(boughtCastObjects) do
+
+        if object.hit_object.tag == 'Card' then
+          if object.hit_object.getName() == dropped_object.getName() then
+            --print("Bought")
+            emptySpot = findEmptySpot()
+
+            local supplyDeckCast = {}
+            supplyDeckCast.origin = {-15.46, 1.16, -0.15}
+            supplyDeckCast.direction = {0,1,0}
+            supplyDeckCast.type = 3
+            supplyDeckCast.size = {1, 1, 1}
+            supplyDeckCast.orientation = {0,0,0}
+            supplyDeckCast.max_distance = 1
+            --supplyDeckCast.debug = true
+
+            supplyDeck = Physics.cast(supplyDeckCast)
+
+            for i, object in ipairs(supplyDeck) do
+              if object.hit_object.tag == 'Deck' then
+                object.hit_object.takeObject({
+                  position       = emptySpot,
+                  flip           = true
+                })
+              end
+            end
+          end
+        elseif object.hit_object.tag == 'Deck' then
+          deckObjects = object.hit_object.getObjects()
+
+          for i, object in ipairs(deckObjects) do
+            if object.nickname == dropped_object.getName() then
+              --print("Bought2 " .. object.nickname)
+              emptySpot = findEmptySpot()
+
+              local supplyDeckCast = {}
+              supplyDeckCast.origin = {-15.46, 1.16, -0.15}
+              supplyDeckCast.direction = {0,1,0}
+              supplyDeckCast.type = 3
+              supplyDeckCast.size = {1, 1, 1}
+              supplyDeckCast.orientation = {0,0,0}
+              supplyDeckCast.max_distance = 1
+              --supplyDeckCast.debug = true
+
+              supplyDeck = Physics.cast(supplyDeckCast)
+
+              for i, object in ipairs(supplyDeck) do
+                if object.hit_object.tag == 'Deck' then
+                  object.hit_object.takeObject({
+                    position       = emptySpot,
+                    flip           = true
+                  })
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
+  --For score button--
+  if gameStart == true and scoreDone == false then
+    local supplyDeckCast = {}
+    supplyDeckCast.origin = {-15.46, 1.16, -0.15}
+    supplyDeckCast.direction = {0,1,0}
+    supplyDeckCast.type = 3
+    supplyDeckCast.size = {1, 1, 1}
+    supplyDeckCast.orientation = {0,0,0}
+    supplyDeckCast.max_distance = 1
+    supplyDeckCast.debug = true
+
+    supplyDeck = Physics.cast(supplyDeckCast)
+    supplyDeckCounter = 0 --Should be only 1 for trigger
+
+    for i, object in ipairs(supplyDeck) do
+      supplyDeckCounter = supplyDeckCounter + 1
+    end
+
+    local overrunAreaCast = {}
+    overrunAreaCast.origin = {21.77, 1.21, 0}
+    overrunAreaCast.direction = {0,1,0}
+    overrunAreaCast.type = 3
+    overrunAreaCast.size = {28, 3, 5.2}
+    overrunAreaCast.orientation = {0,90,0}
+    overrunAreaCast.max_distance = 1
+    overrunAreaCast.debug = true
+
+    overrunCards = Physics.cast(overrunAreaCast)
+    overrunCounter = 0 --Should be <4 to trigger
+
+    for i, object in ipairs(overrunCards) do
+      overrunCounter = overrunCounter + 1
+    end
+
+    print(tostring(overrunCounter))
+
+    if supplyDeckCounter < 2 then
+      scoreDone = true
+
+      local position = calcPosition({5, 1.68, -0.15})
+
+      local supplyDeckButton = {}
+      supplyDeckButton.click_function = 'score'
+      supplyDeckButton.function_owner = nil
+      supplyDeckButton.label = 'Calculate Score'
+      supplyDeckButton.position = {-12.3, position[2], position[3]}
+      supplyDeckButton.rotation = {0, 90, 0}
+      supplyDeckButton.width = 1900
+      supplyDeckButton.height = 600
+      supplyDeckButton.font_size = 200
+
+      --Creates the button itself--
+      mainButton.createButton(supplyDeckButton)
+    elseif overrunCardsPlaced == true and overrunCounter < 5 then
+      scoreDone = true
+
+      local supplyDeckButton = {}
+      supplyDeckButton.click_function = 'score'
+      supplyDeckButton.function_owner = nil
+      supplyDeckButton.label = 'Calculate Score'
+      supplyDeckButton.position = {}
+      supplyDeckButton.rotation = {0, -90, 0}
+      supplyDeckButton.width = 1900
+      supplyDeckButton.height = 600
+      supplyDeckButton.font_size = 200
+
+      emptySpot = findEmptyOverrunSpot()
+
+      if emptySpot == 10.66 then
+        supplyDeckButton.position = {-49.5, 1.03, 36.7}
+      elseif emptySpot == 3.87 then
+        supplyDeckButton.position = {-49.5, 1.03, 31}
+      elseif emptySpot == -3.27 then
+        supplyDeckButton.position = {-49.5, 1.03, 24}
+      elseif emptySpot == -10.92 then
+        supplyDeckButton.position = {-49.5, 1.03, 17.5}
+      end
+
+      --Creates the button itself--
+      mainButton.createButton(supplyDeckButton)
+    end
+  end
+
+  --For Attack/Defense Calculations/Display--
+  if gameStart == true then
+    local redDeploymentZoneCast = {}
+    redDeploymentZoneCast.origin = {0, 0, -9.4}
+    redDeploymentZoneCast.direction = {0,1,0}
+    redDeploymentZoneCast.type = 3
+    redDeploymentZoneCast.size = {34.7, 5, 6}
+    redDeploymentZoneCast.orientation = {0,0,0}
+    redDeploymentZoneCast.max_distance = 1
+    redDeploymentZoneCast.debug = true
+
+    local blueDeploymentZoneCast = {}
+    blueDeploymentZoneCast.origin = {0, 0, 9.4}
+    blueDeploymentZoneCast.direction = {0,1,0}
+    blueDeploymentZoneCast.type = 3
+    blueDeploymentZoneCast.size = {34.7, 5, 6}
+    blueDeploymentZoneCast.orientation = {0,0,0}
+    blueDeploymentZoneCast.max_distance = 1
+    blueDeploymentZoneCast.debug = true
+
+    redDeploymentZone = Physics.cast(redDeploymentZoneCast)
+    blueDeploymentZone = Physics.cast(blueDeploymentZoneCast)
+
+    local redAttack = 0
+    local redDefense = 0
+    local blueAttack = 0
+    local blueDefense = 0
+
+    for i, object in ipairs(redDeploymentZone) do
+      if object.hit_object.tag == 'Card' then
+        redAttack = redAttack + cardData[object.hit_object.getName()][4][1]
+        redDefense = redDefense + cardData[object.hit_object.getName()][4][2]
+      end
+    end
+
+    for i, object in ipairs(blueDeploymentZone) do
+      if object.hit_object.tag == 'Card' then
+        blueAttack = blueAttack + cardData[object.hit_object.getName()][4][1]
+        blueDefense = blueDefense + cardData[object.hit_object.getName()][4][2]
+      end
+    end
+
+    mainButton.editButton({index = findButtonIndex('statRedAttack'), label = 'Attack: ' .. redAttack})
+    mainButton.editButton({index = findButtonIndex('statRedDefense'), label = 'Defense: ' .. redDefense})
+    mainButton.editButton({index = findButtonIndex('statBlueAttack'), label = 'Attack: ' .. blueAttack})
+    mainButton.editButton({index = findButtonIndex('statBlueDefense'), label = 'Defense: ' .. blueDefense})
+  end
+end
+
+function findEmptyOverrunSpot()
+  for i = 1, 4, 1 do
+    overrunCardPos = {10.66, 3.87, -3.27, -10.92}
+
+    items = 0
+
+    local cast = {}
+    cast.origin = {21.94, 0, overrunCardPos[i]}
+    cast.direction = {0,1,0}
+    cast.type = 3
+    cast.size = {1, 1, 1}
+    cast.orientation = {0,0,0}
+    cast.max_distance = 1
+    cast.debug = true
+
+    emptySpots = Physics.cast(cast)
+
+    for i, object in ipairs(emptySpots) do
+      items = items + 1
+    end
+
+    if items == 1 then
+      return overrunCardPos[i]
+    end
+  end
+end
+
+--Function for executing the setup--
+function setup()
+    --Shuffles all three decks that need to be shuffled--
+    redPlayerDeck.shuffle()
+    bluePlayerDeck.shuffle()
+    supplyDeck.shuffle()
+
+    --Creates a table for .takeObject to use with a .position for where the extra supply cards should be placed--
+    local extraSupplyParam = {}
+    --extraSupplyParam.position = {-28.34, 1.12, -7.92} --Position for where to place extra supply deck
+
+    local supplyParam = {}
+    supplyParam.rotation = {0, 179.97, 0}
+
+    --[[Loop for actually reducing the deck down to 40 and disposing of the extra cards to their position as
+    specified by .takeObject's .position--]]
+    for i = 1, 91 do
+        --supplyDeck.takeObject(extraSupplyParam) --Moves extra supply deck to the side-- --note: currently set to destroy extra cards--
+        supplyDeck.takeObject(extraSupplyParam).destruct()
+    end
+
+    --Sets up 'The Supply'
+    for i = 1, 6 do
+        supplyDeck.takeObject(supplyParam).setPositionSmooth({-9.51 + ((i - 1) * 3.73), 1.03, -0.17 }, false, false)
+    end
+end
+
+--Function for playing correct overrun cards on board--
+function overrunCardsOnLoad()
+  local oldOverrun = {}
+  oldOverrun.click_function = 'oldOverrunCards'
+  oldOverrun.function_owner = nil
+  oldOverrun.label = 'Old Overrun Cards'
+  oldOverrun.position = {-27.79 - 22.10, 0.50, 27.28 + 2.80}
+  oldOverrun.rotation = {0.00, 269.97, 0}
+  oldOverrun.width = 2000
+  oldOverrun.height = 800
+  oldOverrun.font_size = 200
+
+  --Creates the button itself--
+  mainButton.createButton(oldOverrun)
+
+  local newOverrun = {}
+  newOverrun.click_function = 'newOverrunCards'
+  newOverrun.function_owner = nil
+  newOverrun.label = 'New Overrun Cards'
+  newOverrun.position = {-27.79 - 22.10, 0.50, 27.28 + -3.10}
+  newOverrun.rotation = {0.00, 269.99, 0}
+  newOverrun.width = 2000
+  newOverrun.height = 800
+  newOverrun.font_size = 200
+
+  --Creates the button itself--
+
+  mainButton.createButton(newOverrun)
+end
+
+function oldOverrunCards()
+  overrunCardsPlaced = true
+  mainButton.removeButton(findButtonIndex('oldOverrunCards'))
+  mainButton.removeButton(findButtonIndex('newOverrunCards'))
+
+  local oldOverrunBagObjects = oldOverrunBag.getObjects()
+
+  for _, object in ipairs(oldOverrunBagObjects) do
+    if object.name == 'Retreat' then
+      oldOverrunBag.takeObject({
+        position       = {21.86, 1.03, -10.92},
+        rotation       = {0.00, 270.00, 0.00},
+        guid           = object.guid
+      })
+      --{21.86, 1.03, -10.92} position
+      --{0.00, 270.00, 0.00} rotation
+    elseif object.name == 'Critical Hit' then
+      oldOverrunBag.takeObject({
+        position       = {21.86, 1.03, -3.27},
+        rotation       = {0.00, 270.00, 0.00},
+        guid           = object.guid
+      })
+      --{21.86, 1.03, -3.27} Position
+      --{0.00, 270.00, 0.00} rotation
+    elseif object.name == 'Raided Supplies' then
+      oldOverrunBag.takeObject({
+        position       = {21.87, 1.03, 3.87},
+        rotation       = {0.00, 270.00, 0.00},
+        guid           = object.guid
+      })
+      --{21.87, 1.03, 3.87} position
+      --{0.00, 270.00, 0.00} rotation
+    elseif object.name == 'Heavy Casualties' then
+      oldOverrunBag.takeObject({
+        position       = {21.94, 1.03, 10.66},
+        rotation       = {0.00, 270.00, 0.00},
+        guid           = object.guid
+      })
+      --{21.94, 1.03, 10.66} position
+      --{0.00, 270.00, 0.00} rotation
+    end
+
+    oldOverrunBag.destruct()
+    newOverrunBag.destruct()
+  end
+end
+
+function newOverrunCards()
+  overrunCardsPlaced = true
+  mainButton.removeButton(findButtonIndex('oldOverrunCards'))
+  mainButton.removeButton(findButtonIndex('newOverrunCards'))
+
+  local newOverrunBagObjects = newOverrunBag.getObjects()
+
+  for _, object in ipairs(newOverrunBagObjects) do
+    if object.name == 'Retreat' then
+      newOverrunBag.takeObject({
+        position       = {21.86, 1.03, -10.92},
+        rotation       = {0.00, 270.00, 0.00},
+        guid           = object.guid
+      })
+      --{21.86, 1.03, -10.92} position
+      --{0.00, 270.00, 0.00} rotation
+    elseif object.name == 'Critical Hit' then
+      newOverrunBag.takeObject({
+        position       = {21.86, 1.03, -3.27},
+        rotation       = {0.00, 270.00, 0.00},
+        guid           = object.guid
+      })
+      --{21.86, 1.03, -3.27} Position
+      --{0.00, 270.00, 0.00} rotation
+    elseif object.name == 'Raided Supplies' then
+      newOverrunBag.takeObject({
+        position       = {21.87, 1.03, 3.87},
+        rotation       = {0.00, 270.00, 0.00},
+        guid           = object.guid
+      })
+      --{21.87, 1.03, 3.87} position
+      --{0.00, 270.00, 0.00} rotation
+    elseif object.name == 'Heavy Casualties' then
+      newOverrunBag.takeObject({
+        position       = {21.94, 1.03, 10.66},
+        rotation       = {0.00, 270.00, 0.00},
+        guid           = object.guid
+      })
+      --{21.94, 1.03, 10.66} position
+      --{0.00, 270.00, 0.00} rotation
+    end
+
+    oldOverrunBag.destruct()
+    newOverrunBag.destruct()
+  end
+end
+
+--Function/button for randomly deciding who goes first--
+function randFirstOnLoad()
+    local button = {}
+    button.click_function = 'randClick'
+    button.function_owner = nil
+    button.label = 'Randomly Decide\n Who Goes First!'
+    button.position = {-27.79, 0.50, 27.28}
+    button.rotation = {0, 0, 0}
+    button.width = 4000
+    button.height = 1500
+    button.font_size = 400
+
+    --Creates the button itself--
+    mainButton.createButton(button)
+end
+
+function randClick()
+    mainButton.removeButton(findButtonIndex('randClick'))
+    randButtonDestroyed = true;
+
+    --Set seed to OS time
+    math.randomseed(os.time())
+    --Pick either 1 or 2 randomly
+    local randomNumber = math.random(1,4)
+
+    if randomNumber == 1  then
+      broadcastToAll('Red Player Wins!\n They Get Initiative!', {1,0,0})
+      mainButton.createButton({label = 'Red Player Wins!\n They Get Initiative!', click_function = 'Null', rotation = {0, 180, 0}, position = {-27.79, 0.50, 27.28}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {1,0,0}})
+      redTextSpawn = true
+    elseif randomNumber == 3  then
+      broadcastToAll('Red Player Wins!\n They Get Initiative!', {1,0,0})
+      mainButton.createButton({label = 'Red Player Wins!\n They Get Initiative!', click_function = 'Null', rotation = {0, 180, 0}, position = {-27.79, 0.50, 27.28}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {1,0,0}})
+      redTextSpawn = true
+    elseif randomNumber == 2 then
+      broadcastToAll('Blue Player Wins!\n They Get Initiative!', {0,0.5,1})
+      mainButton.createButton({label = 'Blue Player Wins!\n They Get Initiative!', click_function = 'Null', rotation = {0, 0, 0}, position = {-27.79, 0.50, 27.28}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {0,0.5,1}})
+      blueTextSpawn = true
+    else
+      broadcastToAll('Blue Player Wins!\n They Get Initiative!', {0,0.5,1})
+      mainButton.createButton({label = 'Blue Player Wins!\n They Get Initiative!', click_function = 'Null', rotation = {0, 0, 0}, position = {-27.79, 0.50, 27.28}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {0,0.5,1}})
+      blueTextSpawn = true
+    end
+
+    --updateRandomSeed()
+    math.randomseed(os.time())
+end
+
+--Function/button for when red player is manually chosen to go first--
+function redFirstOnLoad()
+  local button = {}
+  button.click_function = 'redFirstClick'
+  button.function_owner = nil
+  button.label = 'Red Goes First!'
+  button.position = {-27.79, 0.50, 27.28 + -4.81}
+  button.rotation = {0,180.5,0}
+  button.width = 1300
+  button.height = 400
+  button.font_size = 150
+
+  --Creates the button itself--
+  mainButton.createButton(button)
+end
+
+function redFirstClick()
+  if blueTextSpawn == true or redTextSpawn == true then
+    mainButton.removeButton(findButtonIndex('Null'))
+  end
+
+  mainButton.removeButton(findButtonIndex('redFirstClick'))
+  mainButton.removeButton(findButtonIndex('blueFirstClick'))
+  if randButtonDestroyed == false then
+    mainButton.removeButton(findButtonIndex('randClick'))
+  end
+
+  setup()
+
+  broadcastToAll('Red Player Goes First!\n Good Luck!', {1,0,0})
+  redPlayerDeck.dealToColor(3, 'Red')
+  bluePlayerDeck.dealToColor(5, 'Blue')
+
+  mainButton.createButton({label = 'Attack: 0', click_function = 'statRedAttack', rotation = {0, 180, 0}, position = {-24.2, 0.50, 21.5}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {193/255, 41/255, 46/255}})
+  mainButton.createButton({label = 'Defense: 0', click_function = 'statRedDefense', rotation = {0, 180, 0}, position = {-31.5, 0.50, 21.5}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {8/255, 103/255, 136/255}})
+  mainButton.createButton({label = 'Attack: 0', click_function = 'statBlueAttack', rotation = {0, 0, 0}, position = {-24.2, 0.50, 33}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {193/255, 41/255, 46/255}})
+  mainButton.createButton({label = 'Defense: 0', click_function = 'statBlueDefense', rotation = {0, 0, 0}, position = {-31.5, 0.50, 33}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {8/255, 103/255, 136/255}})
+
+  gameStart = true
+end
+
+--Function/button for when blue player is manually chosen to go first--
+function blueFirstOnLoad()
+  local button = {}
+  button.click_function = 'blueFirstClick'
+  button.function_owner = nil
+  button.label = 'Blue Goes First!'
+  button.position = {-27.79, 0.50, 27.28 + 4.77}
+  button.rotation = {0,0.5,0}
+  button.width = 1300
+  button.height = 400
+  button.font_size = 150
+
+  --Creates the button itself--
+  mainButton.createButton(button)
+end
+
+function blueFirstClick()
+  if blueTextSpawn == true or redTextSpawn == true then
+    mainButton.removeButton(findButtonIndex('Null'))
+  end
+
+  mainButton.removeButton(findButtonIndex('redFirstClick'))
+  mainButton.removeButton(findButtonIndex('blueFirstClick'))
+  if randButtonDestroyed == false then
+    mainButton.removeButton(findButtonIndex('randClick'))
+  end
+
+  setup()
+
+  broadcastToAll('Blue Player Goes First!\n Good Luck!', {0,0.5,1})
+  redPlayerDeck.dealToColor(5, 'Red')
+  bluePlayerDeck.dealToColor(3, 'Blue')
+
+  mainButton.createButton({label = 'Attack: 0', click_function = 'statRedAttack', rotation = {0, 180, 0}, position = {-24.2, 0.50, 21.5}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {193/255, 41/255, 46/255}})
+  mainButton.createButton({label = 'Defense: 0', click_function = 'statRedDefense', rotation = {0, 180, 0}, position = {-31.5, 0.50, 21.5}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {8/255, 103/255, 136/255}})
+  mainButton.createButton({label = 'Attack: 0', click_function = 'statBlueAttack', rotation = {0, 0, 0}, position = {-24.2, 0.50, 33}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {193/255, 41/255, 46/255}})
+  mainButton.createButton({label = 'Defense: 0', click_function = 'statBlueDefense', rotation = {0, 0, 0}, position = {-31.5, 0.50, 33}, width = 0, height = 0, font_size = 300, function_owner = self, font_color = {8/255, 103/255, 136/255}})
+
+  gameStart = true
+end
+
+function score()
+  mainButton.removeButton(findButtonIndex('score'))
+
+  mainButton.removeButton(findButtonIndex('statRedAttack'))
+  mainButton.removeButton(findButtonIndex('statRedDefense'))
+  mainButton.removeButton(findButtonIndex('statBlueAttack'))
+  mainButton.removeButton(findButtonIndex('statBlueDefense'))
+
+  local redDeckCast = {}
+  redDeckCast.origin = {0.1, 1.21, -14.5}
+  redDeckCast.direction = {0,1,0}
+  redDeckCast.type = 3
+  redDeckCast.size = {34.7, 5, 16}
+  redDeckCast.orientation = {0,0,0}
+  redDeckCast.max_distance = 1
+  redDeckCast.debug = true
+
+  redDeckGather = Physics.cast(redDeckCast)
+
+  for i, object in ipairs(redDeckGather) do
+    if object.hit_object.tag == 'Deck' or object.hit_object.tag == 'Card' then
+      object.hit_object.setRotation({180, 0, 0})
+      object.hit_object.setPositionSmooth({0, 1.5, -9.5}, false, true)
+    end
+  end
+
+  local redPlayerHand = Player.Red.getHandObjects()
+
+  for i, object in ipairs(redPlayerHand) do
+    object.setRotation({180, 0, 0})
+    object.setPosition({0, 1.5, -9.5})
+  end
+
+  local redScoreTimer = {
+    identifier = "redScoreCalc",
+    function_name = "scoreCalc",
+    function_owner = self,
+    parameters = {"Red"},
+    delay = 0.6
+  }
+
+  Timer.create(redScoreTimer)
+
+  local blueDeckCast = {}
+  blueDeckCast.origin = {0.1, 1.21, 14.5}
+  blueDeckCast.direction = {0,1,0}
+  blueDeckCast.type = 3
+  blueDeckCast.size = {34.7, 5, 16}
+  blueDeckCast.orientation = {0,0,0}
+  blueDeckCast.max_distance = 1
+  blueDeckCast.debug = true
+
+  blueDeckGather = Physics.cast(blueDeckCast)
+
+  for i, object in ipairs(blueDeckGather) do
+    if object.hit_object.tag == 'Deck' or object.hit_object.tag == 'Card' then
+      object.hit_object.setRotation({180, 0, 0})
+      object.hit_object.setPositionSmooth({0, 1.5, 9.5}, false, true)
+    end
+  end
+
+  local bluePlayerHand = Player.Blue.getHandObjects()
+
+  for i, object in ipairs(bluePlayerHand) do
+    object.setRotation({180, 0, 0})
+    object.setPosition({0, 1.5, 9.5})
+  end
+
+  local blueScoreTimer = {
+    identifier = "blueScoreCalc",
+    function_name = "scoreCalc",
+    function_owner = self,
+    parameters = {"Blue"},
+    delay = 0.6
+  }
+
+  Timer.create(blueScoreTimer)
+
+  function scoreCalc(params)
+    if params[1] == "Red" then
+      Deck = Physics.cast(redDeckCast)
+    elseif params[1] == "Blue" then
+      Deck = Physics.cast(blueDeckCast)
+    end
+
+    score = 0
+
+    for i, object in ipairs(Deck) do
+      if object.hit_object.tag == 'Deck' then
+        deck = object.hit_object.getObjects()
+
+        for i, card in ipairs(deck) do
+          if card.nickname == 'Heavy Casualties' then
+            print("In Heavy Casualties")
+            score = score - 1
+          elseif card.nickname == 'Raided Supplies' then
+            print("In Raided Supplies")
+            score = score - 2
+          elseif card.nickname == 'Critical Hit' or card.nickname == 'Retreat!' then
+            print("In Crit Hit or Retreat")
+            score = score - 3
+          elseif cardData[card.nickname][2] == true then
+            print("In lostec")
+            score = score + 1
+          end
+        end
+      end
+    end
+
+    for i, object in ipairs(Deck) do
+      if object.hit_object.tag == 'Deck' then
+        if params[1] == "Red" then
+          object.hit_object.setName("Red Deck")
+          object.hit_object.setDescription("Score: " .. tostring(score))
+          object.hit_object.createButton({label = 'Score: ' .. score, click_function = 'Null', rotation = {0, 0, 180}, position = {0, -0.5, -2.3}, width = 0, height = 0, font_size = 200, function_owner = self, font_color = {1,0,0}})
+        elseif params[1] == "Blue" then
+          object.hit_object.setName("Blue Deck")
+          object.hit_object.setDescription("Score: " .. tostring(score))
+          object.hit_object.createButton({label = 'Score: ' .. score, click_function = 'Null', rotation = {0, 180, 180}, position = {0, -0.5, 2.3}, width = 0, height = 0, font_size = 200, function_owner = self, font_color = {0,0.5,1}})
+        end
+      end
+    end
+  end
+end
+
+--Function/button for resetting the discard pile for red player--
+function redDiscardResetOnLoad()
+    local button = {}
+    button.click_function = 'redDiscardResetClick'
+    button.function_owner = nil
+    button.label = 'Reset Discard Pile'
+    button.position = {-27.79 + -15.40, 0.50, 27.28 + -25.00}
+    button.rotation = {0,180,0}
+    button.width = 1500
+    button.height = 300
+    button.font_size = 150
+
+    --Creates the button itself--
+    mainButton.createButton(button)
+end
+
+--When button is clicked, this function executes--
+function redDiscardResetClick()
+    local cast = {}
+    cast.origin = {15.46, 1.21, -19.79}
+    cast.direction = {0,1,0}
+    cast.type = 3
+    cast.size = {4, 3, 6}
+    cast.orientation = {0,0,0}
+    cast.max_distance = 1
+    --cast.debug = true
+
+    discardDeckHits = Physics.cast(cast)
+
+    for i, object in ipairs(discardDeckHits) do
+      if object.hit_object.tag == 'Deck' or object.hit_object.tag == 'Card' then
+        object.hit_object.setRotation({0, 180, 0})
+        object.hit_object.flip()
+        object.hit_object.shuffle()
+        object.hit_object.setPositionSmooth({-15.43, 1.5, -19.77}, false, true)
+      end
+    end
+end
+
+--Function/button for initiating red player's clean up process--
+function redCleanUpResetOnLoad()
+    local button = {}
+    button.click_function = 'redCleanUpClick'
+    button.function_owner = nil
+    button.label = 'Execute Clean Up'
+    button.position = {-27.79 + -0.05, 0.50, 27.28 + -24.40}
+    button.rotation = {0,180,0}
+    button.width = 1500
+    button.height = 300
+    button.font_size = 150
+
+    --Creates the button itself--
+    mainButton.createButton(button)
+end
+
+--When button is clicked, this function executes--
+function redCleanUpClick()
+    local redPlayerHand = Player.Red.getHandObjects()
+
+    for i, object in ipairs(redPlayerHand) do
+      object.setPosition({15.46, 1.5, -19.79})
+    end
+
+    local cast = {}
+    cast.origin = {-0.01, 1.21, -19.8}
+    cast.direction = {0,1,0}
+    cast.type = 3
+    cast.size = {23.5, 3, 6}
+    cast.orientation = {0,0,0}
+    cast.max_distance = 1
+    --cast.debug = true
+
+    redPlayAreaHits = Physics.cast(cast)
+
+    for i, object in ipairs(redPlayAreaHits) do
+      if object.hit_object.tag == 'Deck' or object.hit_object.tag == 'Card' then
+        object.hit_object.setPositionSmooth({15.46, 1.5, -19.79}, false, true)
+        object.hit_object.setRotation({0, 180, 0})
+      end
+    end
+
+    local redDiscardWaitTimer = {
+      identifier = "redDiscardWait",
+      function_name = "redDiscardDeal5",
+      function_owner = self,
+      delay = 0.6
+    }
+
+    Timer.create(redDiscardWaitTimer)
+end
+
+function redDiscardDeal5()
+  --New Cleanup code--
+      local drawDeckCast = {}
+      drawDeckCast.origin = {-15.46, 1.21, -19.79}
+      drawDeckCast.direction = {0,1,0}
+      drawDeckCast.type = 3
+      drawDeckCast.size = {4, 3, 6}
+      drawDeckCast.orientation = {0,0,0}
+      drawDeckCast.max_distance = 1
+      --drawDeckCast.debug = true
+
+      cardsDealt = false
+      redDrawDeckHits = Physics.cast(drawDeckCast)
+
+      for i, object in ipairs(redDrawDeckHits) do
+
+        for i, object2 in ipairs(redDrawDeckHits) do
+          if object2.hit_object.tag == 'Deck' or object2.hit_object.tag == 'Card' then
+            object = object2
+          end
+        end
+
+        if cardsDealt == true then
+          break
+        elseif object.hit_object.tag == 'Deck' then
+          cardsDealt = true
+
+          if object.hit_object.getQuantity() >= 5 then
+            object.hit_object.dealToColor(5, 'Red')
+          else
+            object.hit_object.dealToColor(object.hit_object.getQuantity(), 'Red')
+
+            redDiscardResetClick()
+
+            local redDeal5Leftover = {
+              identifier = "redDeal5Leftover",
+              function_name = "redDeal5",
+              function_owner = self,
+              parameters = {drawDeckCast, 5 - object.hit_object.getQuantity()},
+              delay = 0.4
+            }
+
+            Timer.create(redDeal5Leftover)
+          end
+        elseif object.hit_object.tag == 'Card' then
+          cardsDealt = true
+
+          object.hit_object.dealToColor(1, 'Red')
+
+          redDiscardResetClick()
+
+          local redDeal5Leftover = {
+            identifier = "redDeal5Leftover",
+            function_name = "redDeal5",
+            function_owner = self,
+            parameters = {drawDeckCast, 4},
+            delay = 0.4
+          }
+
+          Timer.create(redDeal5Leftover)
+        elseif cardsDealt ~= true then
+          cardsDealt = true
+
+          redDiscardResetClick()
+
+          local redDeal5Leftover = {
+            identifier = "redDeal5Leftover",
+            function_name = "redDeal5",
+            function_owner = self,
+            parameters = {drawDeckCast, 5},
+            delay = 0.4
+          }
+
+          Timer.create(redDeal5Leftover)
+        end
+      end
+end
+
+function redDeal5(params)
+  --print("Hand count: " ..Player.Red.getHandCount())
+  --print("redDealFive function param " ..tostring(params[1]))
+  --print("redDealFive function param " ..tostring(params[2]))
+
+  redPlayAreaHits = Physics.cast(params[1])
+  for i, object2 in ipairs(redPlayAreaHits) do
+
+    if params[2] < 0 then
+      params[2] = 0
+    end
+
+    if object2.hit_object.tag == 'Deck' then
+      --print("in if: " ..params[2])
+      object2.hit_object.dealToColor(params[2], 'Red')
+    elseif object2.hit_object.tag == 'Card' then
+      object2.hit_object.dealToColor(1, 'Red')
+    end
+  end
+end
+
+--Function/button for resetting the blue player's discard pile--
+function blueDiscardResetOnLoad()
+    local button = {}
+    button.click_function = 'blueDiscardResetClick'
+    button.function_owner = nil
+    button.label = 'Reset Discard Pile'
+    button.position = {-27.79 + 15.40, 0.50, 27.28 + 25.00}
+    button.rotation = {0,0,0}
+    button.width = 1500
+    button.height = 300
+    button.font_size = 150
+
+    --Creates the button itself--
+    mainButton.createButton(button)
+end
+
+--When button is clicked, this function executes--
+function blueDiscardResetClick()
+    local cast = {}
+    cast.origin = {-15.46, 1.21, 19.79}
+    cast.direction = {0,1,0}
+    cast.type = 3
+    cast.size = {4, 3, 6}
+    cast.orientation = {0,0,0}
+    cast.max_distance = 1
+    --cast.debug = true
+
+    discardDeckHits = Physics.cast(cast)
+
+    for i, object in ipairs(discardDeckHits) do
+      if object.hit_object.tag == 'Deck' or object.hit_object.tag == 'Card' then
+        object.hit_object.setRotation({0, 0, 0})
+        object.hit_object.flip()
+        object.hit_object.shuffle()
+        object.hit_object.setPositionSmooth({15.45, 1.5, 19.75}, false, true)
+      end
+    end
+end
+
+--Function/button for initiating blue player's clean up process--
+function blueCleanUpResetOnLoad()
+    local button = {}
+    button.click_function = 'blueCleanUpClick'
+    button.function_owner = nil
+    button.label = 'Execute Clean Up'
+    button.position = {-27.79 + 0.05, 0.50, 27.28 + 24.40}
+    button.rotation = {0,0,0}
+    button.width = 1500
+    button.height = 300
+    button.font_size = 150
+
+    --Creates the button itself--
+    mainButton.createButton(button)
+end
+
+--When button is clicked, this function executes--
+function blueCleanUpClick()
+  local bluePlayerHand = Player.Blue.getHandObjects()
+
+  for i, object in ipairs(bluePlayerHand) do
+    object.setPosition({-15.47, 1.5, 19.73})
+  end
+
+  local cast = {}
+  cast.origin = {0.01, 1.21, 19.8}
+  cast.direction = {0,1,0}
+  cast.type = 3
+  cast.size = {23.5, 3, 6}
+  cast.orientation = {0,0,0}
+  cast.max_distance = 1
+  --cast.debug = true
+
+  bluePlayAreaHits = Physics.cast(cast)
+
+  for i, object in ipairs(bluePlayAreaHits) do
+    if object.hit_object.tag == 'Deck' or object.hit_object.tag == 'Card' then
+      object.hit_object.setPositionSmooth({-15.47, 1.5, 19.73}, false, true)
+      object.hit_object.setRotation({0, 0, 0})
+    end
+  end
+
+  local blueDiscardWaitTimer = {
+    identifier = "blueDiscardWait",
+    function_name = "blueDiscardDeal5",
+    function_owner = self,
+    delay = 0.6
+  }
+
+  Timer.create(blueDiscardWaitTimer)
+end
+
+function blueDiscardDeal5()
+  --New Cleanup code--
+      local drawDeckCast = {}
+      drawDeckCast.origin = {15.45, 1.04, 19.75}
+      drawDeckCast.direction = {0,1,0}
+      drawDeckCast.type = 3
+      drawDeckCast.size = {4, 3, 6}
+      drawDeckCast.orientation = {0,0,0}
+      drawDeckCast.max_distance = 1
+      --drawDeckCast.debug = true
+
+      cardsDealt = false
+      blueDrawDeckHits = Physics.cast(drawDeckCast)
+
+      for i, object in ipairs(blueDrawDeckHits) do
+
+        for i, object2 in ipairs(blueDrawDeckHits) do
+          if object2.hit_object.tag == 'Deck' or object2.hit_object.tag == 'Card' then
+            object = object2
+          end
+        end
+
+        if cardsDealt == true then
+          break
+        elseif object.hit_object.tag == 'Deck' then
+          cardsDealt = true
+
+          if object.hit_object.getQuantity() >= 5 then
+            object.hit_object.dealToColor(5, 'Blue')
+          else
+            object.hit_object.dealToColor(object.hit_object.getQuantity(), 'Blue')
+
+            blueDiscardResetClick()
+
+            local blueDeal5Leftover = {
+              identifier = "blueDeal5Leftover",
+              function_name = "blueDeal5",
+              function_owner = self,
+              parameters = {drawDeckCast, 5 - object.hit_object.getQuantity()},
+              delay = 0.4
+            }
+
+            Timer.create(blueDeal5Leftover)
+          end
+        elseif object.hit_object.tag == 'Card' then
+          cardsDealt = true
+
+          object.hit_object.dealToColor(1, 'Blue')
+
+          blueDiscardResetClick()
+
+          local blueDeal5Leftover = {
+            identifier = "blueDeal5Leftover",
+            function_name = "blueDeal5",
+            function_owner = self,
+            parameters = {drawDeckCast, 4},
+            delay = 0.4
+          }
+
+          Timer.create(blueDeal5Leftover)
+        elseif cardsDealt ~= true then
+          cardsDealt = true
+
+          blueDiscardResetClick()
+
+          local blueDeal5Leftover = {
+            identifier = "blueDeal5Leftover",
+            function_name = "blueDeal5",
+            function_owner = self,
+            parameters = {drawDeckCast, 5},
+            delay = 0.4
+          }
+
+          Timer.create(blueDeal5Leftover)
+        end
+      end
+end
+
+function blueDeal5(params)
+  --print("Hand count: " ..Player.Red.getHandCount())
+  --print("redDealFive function param " ..tostring(params[1]))
+  --print("redDealFive function param " ..tostring(params[2]))
+
+  bluePlayAreaHits = Physics.cast(params[1])
+  for i, object2 in ipairs(bluePlayAreaHits) do
+
+    if params[2] < 0 then
+      params[2] = 0
+    end
+
+    if object2.hit_object.tag == 'Deck' then
+      --print("in if: " ..params[2])
+      object2.hit_object.dealToColor(params[2], 'Blue')
+    elseif object2.hit_object.tag == 'Card' then
+      object2.hit_object.dealToColor(1, 'Blue')
+    end
+  end
+end
+
+--Helper Functions--
+function findButtonIndex(label)
+    local aButtons = mainButton.getButtons()
+    for _, B in pairs(aButtons) do
+        --print(tostring(but.click_function))
+        if B.click_function == label then
+            return B.index
+        end
+    end
+end
+
+function calcPosition(desiredPosition)
+  buttonPosition = mainButton.getPosition()
+
+  --[[
+  print(tostring(buttonPosition[1]))
+  print(tostring(buttonPosition[2]))
+  print(tostring(buttonPosition[3]))
+  --{-27.79, 0.50, -27.28}
+  ]]
+
+  buttonPosition[1] = desiredPosition[1] + -(buttonPosition[1])
+  buttonPosition[2] = 0.50
+  buttonPosition[3] = desiredPosition[3] + -(buttonPosition[3])
+
+  --[[
+  print('After')
+
+  print(tostring(buttonPosition[1]))
+  print(tostring(buttonPosition[2]))
+  print(tostring(buttonPosition[3]))
+  ]]
+
+
+  return buttonPosition
+end
